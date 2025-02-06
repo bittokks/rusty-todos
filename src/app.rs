@@ -1,26 +1,50 @@
 use std::{
     io::IsTerminal,
     net::{IpAddr, Ipv6Addr, SocketAddr},
+    sync::Arc,
 };
 
 use axum::{http::StatusCode, routing::get, Router};
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use color_eyre::config::{HookBuilder, Theme};
 use tokio::net::TcpListener;
 use tower_http::trace::TraceLayer;
 
-use crate::tracing::{http, instrumentation::Instrumentation};
+use crate::{
+    config::{db::DatabaseCommands, state::AppContext},
+    controllers::auth,
+    error::Result as AppResult,
+    tracing::{http, instrumentation::InstrumentationCommands},
+};
 
-#[derive(Parser)]
+#[derive(Debug, Subcommand, Clone)]
+pub enum Commands {
+    /// Configure how to connect to a database.
+    Database(DatabaseCommands),
+
+    /// Configure telemetry and instrumentation of the app.
+    Instrumentation(InstrumentationCommands),
+}
+
+/// Configuration details of our web server.
+#[derive(Parser, Clone)]
+#[command(
+    name = "todos",
+    version = "0.1.0",
+    about = "A web backend for todos application",
+    author = "Simon Bittok <bittokkibet@gmail.com>"
+)]
 pub struct App {
+    /// The socket address which the TCP will bind to.
+    /// Uses IP V6
     #[clap(long, default_value_t = SocketAddr::new(IpAddr::V6(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 0)), 8000))]
-    address: SocketAddr,
-    #[clap(flatten)]
-    instrumentation: Instrumentation,
+    pub address: SocketAddr,
+    #[command(subcommand)]
+    pub commands: Commands,
 }
 
 impl App {
-    pub async fn run() -> color_eyre::Result<()> {
+    pub async fn run() -> AppResult<()> {
         HookBuilder::default()
             .theme(if std::io::stderr().is_terminal() {
                 Theme::dark()
@@ -30,18 +54,29 @@ impl App {
             .install()?;
 
         let cli = Self::parse();
-        cli.instrumentation.setup()?;
+
+        match &cli.commands {
+            Commands::Instrumentation(telemetry) => {
+                let _setup = telemetry.setup()?;
+            }
+            _ => {}
+        }
 
         let trace_layer = TraceLayer::new_for_http()
             .make_span_with(http::make_span_with)
             .on_request(http::on_request)
             .on_response(http::on_response);
 
+        let ctx = AppContext::new(&cli).await?;
+
         let app = Router::new()
             .route("/", get(hello))
             .route("/health", get(health))
             .fallback(page_404)
-            .layer(trace_layer);
+            .nest("/auth", auth::routes())
+            .layer(trace_layer)
+            .with_state(Arc::new(ctx));
+
         tracing::info!("Listening on {}", &cli.address);
 
         let listener = TcpListener::bind(&cli.address).await?;

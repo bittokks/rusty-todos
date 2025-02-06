@@ -14,8 +14,8 @@ use tracing_subscriber::{
 
 use super::logger::Logger;
 
-#[derive(Debug, Default, Args)]
-pub struct Instrumentation {
+#[derive(Debug, Default, Args, Clone)]
+pub struct InstrumentationCommands {
     /// Enable debug logs -vv for trace
     #[clap(short = 'v',  long, action = ArgAction::Count, global = true)]
     verbose: u8,
@@ -27,7 +27,7 @@ pub struct Instrumentation {
     directives: Vec<Directive>,
 }
 
-impl Instrumentation {
+impl InstrumentationCommands {
     pub fn log_level(&self) -> String {
         match self.verbose {
             0 => "error",
