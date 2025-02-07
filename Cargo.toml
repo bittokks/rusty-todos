@@ -9,6 +9,7 @@ axum = "0.8.1"
 chrono = { version = "0.4.39", features = ["serde"] }
 clap = { version = "4.5.28", features = ["derive"] }
 color-eyre = { version = "0.6.3", features = ["tracing-error", "issue-url", "capture-spantrace", "color-spantrace"] }
+config = { version = "0.15.7", features = ["yaml"] }
 hyper = "1.6.0"
 jsonwebtoken = "9.3.0"
 serde = { version = "1.0.217", features = ["derive"] }
@@ -20,5 +21,5 @@ tower = "0.5.2"
 tower-http = { version = "0.6.2", features = ["trace"] }
 tracing = { version = "0.1.41", features = ["log"] }
 tracing-error = "0.2.1"
-tracing-subscriber = { version = "0.3.19", features = ["env-filter", "json"] }
+tracing-subscriber = { version = "0.3.19", features = ["env-filter", "json", "serde"] }
 uuid = { version = "1.13.1", features = ["serde", "v4"] }

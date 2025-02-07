@@ -31,18 +31,24 @@ pub enum Error {
     Argon(argon2::Error),
     #[error("{0}")]
     ArgonPasswordHash(argon2::password_hash::Error),
-    #[error("Page not found")]
-    NotFound,
+    #[error("{0}")]
+    Config(#[from] config::ConfigError),
+    #[error("{0}")]
+    ConfigFile(String),
+    #[error("{0}")]
+    EntityAlreadyExists(String),
+    #[error("Entity not found.")]
+    EntityNotFound,
     #[error("Internal server error")]
     InternalServerError,
     #[error("{0}")]
     InvalidCredentials(String),
     #[error(transparent)]
+    IoError(#[from] std::io::Error),
+    #[error("Page not found")]
+    NotFound,
+    #[error(transparent)]
     Sqlx(#[from] sqlx::Error),
-    #[error("{0}")]
-    EntityAlreadyExists(String),
-    #[error("Entity not found.")]
-    EntityNotFound,
     #[error(transparent)]
     Serde(#[from] serde_json::Error),
     #[error("{0}")]

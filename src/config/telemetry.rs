@@ -1,6 +1,12 @@
+use serde::Deserialize;
+
+use crate::{
+    error::{self, Result},
+    tracing::logger::{Level, Logger},
+};
+
 use std::{env::VarError, error::Error, io::IsTerminal};
 
-use clap::{ArgAction, Args};
 use color_eyre::eyre::WrapErr;
 use tracing::Subscriber;
 use tracing_error::ErrorLayer;
@@ -12,34 +18,15 @@ use tracing_subscriber::{
     EnvFilter,
 };
 
-use super::logger::Logger;
-
-#[derive(Debug, Default, Args, Clone)]
-pub struct InstrumentationConfig {
-    /// Enable debug logs -vv for trace
-    #[clap(short = 'v',  long, action = ArgAction::Count, global = true)]
-    verbose: u8,
-    /// Which logger to use i.e JSON, FULL
-    #[clap(long, default_value_t = Default::default(), global = true)]
-    logger: Logger,
-    /// Tracing direcctives
-    #[clap(long = "directive", global = true, value_delimiter = ',', num_args = 0.. )]
-    directives: Vec<Directive>,
+#[derive(Debug, Clone, Deserialize)]
+pub struct TelemetryConfig {
+    pub directives: Vec<String>,
+    pub logger: Logger,
+    pub level: Level,
 }
 
-impl InstrumentationConfig {
-    pub fn log_level(&self) -> String {
-        match self.verbose {
-            0 => "error",
-            1 => "warn",
-            2 => "info",
-            3 => "debug",
-            _ => "trace",
-        }
-        .to_string()
-    }
-
-    pub fn setup(&self) -> color_eyre::Result<()> {
+impl TelemetryConfig {
+    pub fn setup(&self) -> Result<()> {
         let filter_layer = self.filter_layer()?;
 
         let registry = tracing_subscriber::registry()
@@ -56,7 +43,7 @@ impl InstrumentationConfig {
         Ok(())
     }
 
-    pub fn filter_layer(&self) -> color_eyre::Result<EnvFilter> {
+    pub fn filter_layer(&self) -> Result<EnvFilter> {
         let mut filter_layer = match EnvFilter::try_from_default_env() {
             Ok(filter) => filter,
             Err(e) => {
@@ -64,7 +51,7 @@ impl InstrumentationConfig {
                 if let Some(source) = e.source() {
                     match source.downcast_ref::<VarError>() {
                         Some(VarError::NotPresent) => (),
-                        _ => return Err(e).wrap_err_with(|| "parsing RUST_LOG directives"),
+                        _ => return Err(error::Error::InternalServerError.into()),
                     }
                 }
                 // if --directive is specified, don't set a default
@@ -80,7 +67,9 @@ impl InstrumentationConfig {
             }
         };
 
-        for directive in &self.directives {
+        let directives = self.directives()?;
+
+        for directive in directives {
             let cloned = directive.clone();
             filter_layer = filter_layer.add_directive(cloned);
         }
@@ -130,5 +119,26 @@ impl InstrumentationConfig {
             .with_ansi(std::io::stderr().is_terminal())
             .with_writer(std::io::stderr)
             .pretty()
+    }
+
+    pub fn log_level(&self) -> &str {
+        self.level.as_str()
+    }
+
+    pub fn directives(&self) -> Result<Vec<Directive>> {
+        let mut directives = Vec::new();
+
+        for module in &self.directives {
+            let directive = format!("{}={}", module, self.log_level());
+
+            match directive.parse::<Directive>() {
+                Ok(directive) => directives.push(directive),
+                Err(e) => {
+                    return Err(error::Error::InternalServerError.into());
+                }
+            }
+        }
+
+        Ok(directives)
     }
 }

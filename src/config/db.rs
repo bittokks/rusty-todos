@@ -1,14 +1,15 @@
 use std::time::Duration;
 
 use clap::Args;
+use serde::Deserialize;
 use sqlx::{postgres::PgPoolOptions, PgPool};
 use tracing::log::LevelFilter;
 
 use crate::error::Result;
 
 /// Define database connection information.
-#[derive(Debug, Args, Default, Clone)]
-pub struct DatabaseCommands {
+#[derive(Debug, Args, Default, Clone, Deserialize)]
+pub struct DatabaseConfig {
     /// Database connection URL i.e `postgresql://username:Password@host:port/database`
     #[clap(long)]
     pub uri: String,
@@ -36,7 +37,7 @@ pub struct DatabaseCommands {
     pub log: bool,
 }
 
-impl DatabaseCommands {
+impl DatabaseConfig {
     pub async fn connection_pool(&self) -> Result<PgPool> {
         let options = PgPoolOptions::new()
             .acquire_timeout(Duration::from_secs(self.connect_timeout))

@@ -1,0 +1,22 @@
+server:
+  protocol: "http"
+  host: localhost
+  port: 5150
+
+database:
+  uri: "postgresql://admin:Password@localhost:5432/rust_todos"
+  max_connections: 2
+  min_connections: 1
+  connect_timeout: 5000
+  idle_timeout: 5000
+  log: true
+
+telemetry:
+  directives:
+    - todos
+    - axum
+    - tower
+    - tower_http
+    - sqlx
+  level: Trace
+  logger: Full

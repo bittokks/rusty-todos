@@ -5,26 +5,20 @@ use std::{
 };
 
 use axum::{http::StatusCode, routing::get, Router};
-use clap::{Parser, Subcommand};
+use clap::Parser;
 use color_eyre::config::{HookBuilder, Theme};
 use tokio::net::TcpListener;
 use tower_http::trace::TraceLayer;
 
 use crate::{
-    config::{db::DatabaseCommands, state::AppContext},
+    config::{
+        app::{AppConfig, AppEnvironment},
+        state::AppContext,
+    },
     controllers::auth,
     error::Result as AppResult,
-    tracing::{http, instrumentation::InstrumentationCommands},
+    tracing::http,
 };
-
-#[derive(Debug, Subcommand, Clone)]
-pub enum Commands {
-    /// Configure how to connect to a database.
-    Database(DatabaseCommands),
-
-    /// Configure telemetry and instrumentation of the app.
-    Instrumentation(InstrumentationCommands),
-}
 
 /// Configuration details of our web server.
 #[derive(Parser, Clone)]
@@ -39,8 +33,11 @@ pub struct App {
     /// Uses IP V6
     #[clap(long, default_value_t = SocketAddr::new(IpAddr::V6(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 0)), 8000))]
     pub address: SocketAddr,
-    #[command(subcommand)]
-    pub commands: Commands,
+
+    /// The file which the configuration details are contained in. Must be a yaml file, in a config parallel
+    /// to the source directory
+    #[clap(long, default_value_t = AppEnvironment::Development)]
+    pub env: AppEnvironment<'static>,
 }
 
 impl App {
@@ -55,19 +52,16 @@ impl App {
 
         let cli = Self::parse();
 
-        match &cli.commands {
-            Commands::Instrumentation(telemetry) => {
-                let _setup = telemetry.setup()?;
-            }
-            _ => {}
-        }
+        let config = AppConfig::build(&cli.env)?;
+
+        config.telemetry.setup()?;
 
         let trace_layer = TraceLayer::new_for_http()
             .make_span_with(http::make_span_with)
             .on_request(http::on_request)
             .on_response(http::on_response);
 
-        let ctx = AppContext::new(&cli).await?;
+        let ctx = AppContext::new(&config).await?;
 
         let app = Router::new()
             .route("/", get(hello))

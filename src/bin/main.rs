@@ -7,7 +7,7 @@ async fn main() -> Result<ExitCode, ExitCode> {
     let run = App::run().await;
 
     if let Err(e) = run {
-        tracing::error!("Error {:?}", e);
+        eprintln!("Error {:?}", e);
         Err(ExitCode::FAILURE)
     } else {
         Ok(ExitCode::SUCCESS)

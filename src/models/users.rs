@@ -63,6 +63,8 @@ pub struct User {
 impl User {
     #[tracing::instrument(skip_all)]
     pub async fn register(db: &PgPool, dto: &RegisterUser<'_>) -> Result<Self> {
+        tracing::info!("Registering new user: {}", &dto.username);
+
         let password = Self::hash_password(&dto.password)?;
         // Create a Transaction to perform multiple queries on one connection
         let mut txn = db.begin().await?;

@@ -1,27 +1,22 @@
 use sqlx::PgPool;
 
-use crate::{
-    app::{App, Commands},
-    error::{Error, Result},
-};
+use crate::error::Result;
+
+use super::app::AppConfig;
 
 #[derive(Clone)]
 pub struct AppContext {
     pub db: PgPool,
-    pub config: App,
+    pub config: AppConfig,
 }
 
 impl AppContext {
-    pub async fn new(app: &App) -> Result<Self> {
-        if let Commands::Database(dbc) = &app.commands {
-            let db = dbc.connection_pool().await?;
+    pub async fn new(cfg: &AppConfig) -> Result<Self> {
+        let db = cfg.database.connection_pool().await?;
 
-            Ok(Self {
-                db,
-                config: app.clone(),
-            })
-        } else {
-            Err(Error::InternalServerError.into())
-        }
+        Ok(Self {
+            db,
+            config: cfg.clone(),
+        })
     }
 }
