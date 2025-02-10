@@ -71,9 +71,17 @@ impl App {
             .layer(trace_layer)
             .with_state(Arc::new(ctx));
 
-        tracing::info!("Listening on {}", &cli.address);
+        let listener = match TcpListener::bind(config.server.address()).await {
+            Ok(listener) => listener,
+            Err(e) => match e.kind() {
+                tokio::io::ErrorKind::AddrInUse => TcpListener::bind(&cli.address).await?,
+                _ => {
+                    return Err(crate::error::Error::InternalServerError.into());
+                }
+            },
+        };
 
-        let listener = TcpListener::bind(&cli.address).await?;
+        tracing::info!("Listening on {:?}", listener.local_addr().unwrap());
 
         axum::serve(listener, app).await?;
 

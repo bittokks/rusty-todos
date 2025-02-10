@@ -2,7 +2,11 @@ use argon2::password_hash::Error as PasswordHashError;
 use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
+    Json,
 };
+use serde_json::json;
+
+use crate::error::{AuthError, ModelError};
 
 pub type Result<T, E = Report> = color_eyre::Result<T, E>;
 
@@ -45,6 +49,8 @@ pub enum Error {
     InvalidCredentials(String),
     #[error(transparent)]
     IoError(#[from] std::io::Error),
+    #[error("{0}")]
+    TracingSubscriber(String),
     #[error("Page not found")]
     NotFound,
     #[error(transparent)]
@@ -75,7 +81,11 @@ impl Error {
             ),
         };
 
-        (status, message).into_response()
+        let body = Json(json!({
+            "message": message
+        }));
+
+        (status, body).into_response()
     }
 }
 
@@ -86,17 +96,26 @@ impl IntoResponse for Report {
 
         tracing::error!("{err_string}");
 
-        if let Some(e) = err.downcast_ref::<Error>() {
-            return e.response();
-        }
-
-        // Fallback error
-        //
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "Internal server error".to_string(),
+        err.downcast_ref::<Error>().map_or_else(
+            || {
+                err.downcast_ref::<AuthError>().map_or_else(
+                    || {
+                        err.downcast_ref::<ModelError>().map_or_else(
+                            || {
+                                (
+                                    StatusCode::INTERNAL_SERVER_ERROR,
+                                    Json(json!({"message": "Something went wrong on our end."})),
+                                )
+                                    .into_response()
+                            },
+                            |e| e.response(),
+                        )
+                    },
+                    |e| e.response(),
+                )
+            },
+            |e| e.response(),
         )
-            .into_response()
     }
 }
 

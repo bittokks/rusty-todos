@@ -6,7 +6,7 @@ use argon2::{
 };
 use chrono::{DateTime, FixedOffset};
 use serde::{Deserialize, Serialize};
-use sqlx::{postgres::PgRow, Decode, FromRow, PgPool, Row};
+use sqlx::{postgres::PgRow, Decode, Executor, FromRow, PgPool, Postgres, Row};
 use uuid::Uuid;
 
 use crate::error::{Error, Result};
@@ -63,8 +63,6 @@ pub struct User {
 impl User {
     #[tracing::instrument(skip_all)]
     pub async fn register(db: &PgPool, dto: &RegisterUser<'_>) -> Result<Self> {
-        tracing::info!("Registering new user: {}", &dto.username);
-
         let password = Self::hash_password(&dto.password)?;
         // Create a Transaction to perform multiple queries on one connection
         let mut txn = db.begin().await?;
@@ -79,12 +77,14 @@ impl User {
 
         if let Some(row) = exists {
             let email_exists: &str = row.try_get("email").unwrap_or_default();
+            let username_taken: &str = row.try_get("username").unwrap_or_default();
 
             if email_exists == &dto.email {
                 return Err(
                     Error::EntityAlreadyExists("User with email already exists".into()).into(),
                 );
-            } else {
+            }
+            if username_taken == &dto.username {
                 return Err(Error::EntityAlreadyExists("Username already taken".into()).into());
             }
         }
@@ -97,6 +97,8 @@ impl User {
         .bind(password)
         .fetch_one(&mut *txn)
         .await?;
+
+        txn.commit().await?;
 
         Ok(user)
     }
@@ -113,5 +115,31 @@ impl User {
             let err = Error::from(hashed.unwrap_err());
             Err(err.into())
         }
+    }
+
+    #[tracing::instrument]
+    pub async fn find_by_email<'e, E>(db: E, email: &str) -> Result<Self>
+    where
+        E: Executor<'e, Database = Postgres>,
+    {
+        let user = sqlx::query_as::<_, Self>("SELECT * FROM users WHERE email = $1")
+            .bind(email)
+            .fetch_optional(db)
+            .await?;
+
+        user.ok_or_else(|| Error::EntityNotFound.into())
+    }
+
+    #[tracing::instrument]
+    pub async fn find_by_id<'e, E>(db: E, id: Uuid) -> Result<Self>
+    where
+        E: Executor<'e, Database = Postgres>,
+    {
+        let user = sqlx::query_as::<_, Self>("SELECT * FROM users WHERE id = $1")
+            .bind(id)
+            .fetch_optional(db)
+            .await?;
+
+        user.ok_or_else(|| Error::EntityNotFound.into())
     }
 }

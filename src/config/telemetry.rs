@@ -7,7 +7,6 @@ use crate::{
 
 use std::{env::VarError, error::Error, io::IsTerminal};
 
-use color_eyre::eyre::WrapErr;
 use tracing::Subscriber;
 use tracing_error::ErrorLayer;
 use tracing_subscriber::{
@@ -51,7 +50,7 @@ impl TelemetryConfig {
                 if let Some(source) = e.source() {
                     match source.downcast_ref::<VarError>() {
                         Some(VarError::NotPresent) => (),
-                        _ => return Err(error::Error::InternalServerError.into()),
+                        _ => return Err(error::Error::TracingSubscriber(e.to_string()).into()),
                     }
                 }
                 // if --directive is specified, don't set a default
@@ -134,7 +133,7 @@ impl TelemetryConfig {
             match directive.parse::<Directive>() {
                 Ok(directive) => directives.push(directive),
                 Err(e) => {
-                    return Err(error::Error::InternalServerError.into());
+                    return Err(error::Error::TracingSubscriber(e.to_string()).into());
                 }
             }
         }

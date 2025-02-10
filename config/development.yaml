@@ -20,3 +20,9 @@ telemetry:
     - sqlx
   level: Trace
   logger: Full
+
+  auth:
+    access:
+      public_key: "config/keys/access_key.pem"
+      private_key: "config/keys/access_key_pub.pem"
+      ttl: 3600 # seconds

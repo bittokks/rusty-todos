@@ -1,6 +1,5 @@
 use std::time::Duration;
 
-use clap::Args;
 use serde::Deserialize;
 use sqlx::{postgres::PgPoolOptions, PgPool};
 use tracing::log::LevelFilter;
@@ -8,32 +7,20 @@ use tracing::log::LevelFilter;
 use crate::error::Result;
 
 /// Define database connection information.
-#[derive(Debug, Args, Default, Clone, Deserialize)]
+#[derive(Debug, Default, Clone, Deserialize)]
 pub struct DatabaseConfig {
-    /// Database connection URL i.e `postgresql://username:Password@host:port/database`
-    #[clap(long)]
     pub uri: String,
 
-    /// Database connection timeout in seconds
-    /// How long before the connection is aborted
-    #[clap(short = 't', long, default_value_t = 5)]
+    /// Milliseconds
     pub connect_timeout: u64,
 
-    /// Idle timeout in seconds.
-    /// If a connection is idle for this amount it will be closed
-    #[clap(short = 'i', long, default_value_t = 5)]
+    /// Milliseconds
     pub idle_timeout: u64,
 
-    /// Maximum number of connections for the database.
-    #[clap(short = 'd', long, default_value_t = 1)]
     pub max_connections: u32,
 
-    /// Minimum number of connections for the database.
-    #[clap(short = 'n', long, default_value_t = 1)]
     pub min_connections: u32,
 
-    /// Should you enable logging of sql statements. Default is false.
-    #[clap(long, default_value_t = false)]
     pub log: bool,
 }
 
